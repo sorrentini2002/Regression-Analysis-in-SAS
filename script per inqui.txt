@@ -1,0 +1,167 @@
+*--------------------------------------------------------------------*
+!     Es. 4.2 disp.1, Fonte dei dati:  Armitage, Statistica Medica.  !
+!     Si ipotizza una relazione lineare tra il numero di             !
+!     decessi  (y) verificatosi nella contea di Londra, dal 1 al     !
+!     15 dicembre 1952,e due indicatori di inquinamento atmosferico: !
+!     smog in mg/mc  (x), e diossido di solfuro                      !
+!     (numero di particelle su un milione) (z).                      !
+!     Si adotta un modello di regressione di tipo lineare. Si noti   !
+!     che le due var. esplicative, x e z, sono fortemente correlate. !
+!     Si tratta di un caso di multicollinearita'in cui i parametri   !
+!     perdono il significato di coefficienti di                      !
+!              REGRESSIONE  PARZIALE                                 !
+*--------------------------------------------------------------------*;
+title 'INQUINAMENTO ATMOSFERICO';
+goptions reset=all;
+
+options ls=80 ps=60 nodate;
+data inqui;
+input y x z cod;
+label y='N. morti'
+      x='Smog'
+      z='Diossido';
+cards;
+112 0.30 0.09 1
+140 0.49 0.16 2
+143 0.61 0.22 3
+120 0.49 0.14 4
+196 2.64 0.75 5
+294 3.45 0.86 6
+513 4.46 1.34 7
+518 4.46 1.34 8
+430 1.22 0.47 9
+274 1.22 0.47 10
+255 0.32 0.22 11
+236 0.29 0.23 12
+256 0.50 0.26 13
+222 0.32 0.16 14 
+213 0.32 0.16 15
+;proc print;run;
+
+% osserviamo correlazione tra le variabili;
+
+proc corr data = inqui; var x z y; run;
+
+% forte correlazione a coppia tra tutte le variabili;
+% studio la multicollinearità;
+
+proc reg data = inqui;
+model y = x z/collin VIF TOL;
+run;
+
+% diagnostica della componente parametrica;
+
+proc reg data = inqui;
+model y =x z;
+plot r.*x;
+plot r.*z;
+run;
+
+% nessuna componente sistematica;
+% applico algoritmi di selezione per capire il modello migliore;
+
+
+proc reg data = inqui plots = (criteria);
+model y =x z/selection = forward slentry = 0.1;
+run;
+
+
+proc reg data = inqui plots = (criteria);
+model y =x z/selection = backward slstay = 0.05;
+run;
+
+
+proc reg data = inqui plots = (criteria);
+model y =x z/selection = stewise slentry = 0.1 slstay = 0.05;
+run;
+
+% daignostica riguardo la compatibilità dei dati;
+
+proc reg data = inqui;
+model y = z x;
+output out = uno r = res1 cookd =cook1 h = h1;run;
+
+proc sgscatter data = uno;
+plot cook1*h1/datalabel = cod;
+run;
+
+% osservazione 6 con leverage e distanza di Cook elevata;
+
+data inqui; set inqui;
+w = 1; if cod = 6 then w = 0;
+run;
+
+
+proc reg data = inqui;
+model y = z x;
+weight w;
+output out = due r = res2 cookd =cook2 h = h2;run;
+
+proc sgscatter data = due; where w = 1;
+plot cook2*h2/datalabel = cod;
+run;
+
+% risulta l osservazione 5 come outlier;
+
+data inqui; set inqui;
+if cod = 5 then w = 0;
+run;
+
+proc reg data = inqui;
+model y = z x;
+weight w;
+output out = tre r = res3 cookd =cook3 h = h3;run;
+
+proc sgscatter data = tre; where w = 1;
+plot cook3*h3/datalabel = cod;
+run;
+
+% tolgo la 12;
+
+data inqui; set inqui;
+if cod = 12 then w = 0;
+run;
+
+proc reg data = inqui;
+model y = z x;
+weight w;
+output out = quattro r = res4 cookd =cook4 h = h4;run;
+
+proc sgscatter data = quattro; where w = 1;
+plot cook4*h4/datalabel = cod;
+run;
+
+% tolgo pure 9
+
+data inqui; set inqui;
+if cod = 9 then w = 0;
+run;
+
+proc reg data = inqui;
+model y = z x;
+weight w;
+output out = cin r = res5 p = pred5 cookd =cook5 h = h5;run;
+
+proc sgscatter data = cin; where w = 1;
+plot cook5*h5/datalabel = cod;
+run;
+
+
+% analisi sulla componente casuale;
+
+data normal; set cin; if w = 1; run;
+proc univariate plot normal;
+var res5;
+run;
+
+% omoschedasticità;
+
+proc sgscatter data = cin;
+plot res5*pred5/datalabel = cod;
+run;
+
+% indipendenza;
+
+proc sgscatter data = cin;
+plot res5*cod/datalabel = cod;
+run;

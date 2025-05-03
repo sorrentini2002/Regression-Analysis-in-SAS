@@ -1,0 +1,150 @@
+/* Fonte: Atkinson, Plot, Transformation and Regression */
+title ' Forbes data';
+options ls=80 ps=55 nodate;
+goptions reset=global;
+data forbes;
+input obs x y cod$;
+label x='Bp-F' y='Pres-Hg';
+cards;
+1 194.5 20.79 a
+2 194.3 20.79 b
+3 197.9 22.40 c
+4 198.4 22.67 d
+5 199.4 23.15 e
+6 199.9 23.35 f
+7 200.9 23.89 g
+8 201.1 23.99 h
+9 201.4 24.02 i
+10 201.3 24.01 l
+11 203.6 25.14 m
+12 204.6 26.57 n
+13 209.5 28.49 o
+14 208.6 27.76 p
+15 210.7 29.04 q
+16 211.9 29.88 r
+17 212.2 30.06 s
+;proc print;
+run;
+
+% analisi correlazione;
+
+proc corr data = forbes;
+var x y; run;
+
+% forte correlazione tra di loro;
+
+% modello di regressione;
+
+proc reg data = forbes;
+model y = x;
+output out = uno r = res1 p = pred1 h = h1 cookd = cook1; run;
+
+
+% diagnostica sulla componente parametrica;
+
+proc sgscatter data = uno;
+plot res1*x/datalabel = obs;run;
+
+% componente sistematica suggerisce una trasformazione della variabile esplicativa;
+% inoltre, l osservazione 12 appare come outlier;
+
+data forbes; set forbes;
+w=1; if obs=12 then w=0;
+x2 = x*x;
+run;
+
+proc reg data = forbes;
+model y = x x2/r influence ;
+plot r.*x2;
+plot r.*x;
+run;
+
+% nessuna componente sistematica;
+
+proc reg data = forbes plots=(criteria);
+model y = x x2/selection = forward ;
+run;
+
+% procedo ad eliminare l osservazione 12; 
+
+proc reg data = forbes;
+model y = x x2/r influence ;
+weight w;
+plot r.*x2;
+plot r.*x;
+output out = due r = res2 p = pred2 h = h2 cookd =cook2;
+run;
+
+% diagnostica sulla componente parametrica non suggerisce alcuna trasformazione ulteriore;
+% si procede su analisi dei dati anomali;
+
+proc sgscatter data = due;
+plot h2*cook2/datalabel = obs;
+run;
+ 
+% l osservazione 1 presenta sia una leverage che una distanza di Cook rilevanti;
+
+data forbes; set forbes;
+if obs = 1 then w = 0;
+run;
+
+proc reg data = forbes;
+model y = x x2/r influence ;
+weight w;
+plot h.*cookd.;
+output out = tre r = res3 p = pred3 h = h3 cookd =cook3;
+run;
+
+% si continua ad osservare un altra osservazione che presenta entrambi i valori alti;
+
+proc sgscatter data = tre;
+plot h3*cook3/datalabel = obs;
+run;
+
+% l osservazione numero 2;
+
+data forbes; set forbes;
+if obs = 2 then w = 0;
+run;
+
+proc reg data = forbes;
+model y = x x2/r influence ;
+weight w;
+plot h.*cookd.;
+output out = quattro r = res4 p = pred4 h = h4 cookd =cook4;
+run;
+
+proc sgscatter data = quattro;
+plot h4*cook4/datalabel = obs;
+run;
+
+proc gplot data = quattro;
+bubble h4*cook4 = x/blabel;
+run;
+
+% non sono più presenti dati anomali;
+% procedo alla diagnostica della componente casuale;
+
+% normalità;
+
+data normal; set quattro; if w = 1; run;
+proc univariate plot normal;
+var res4;
+run;
+
+rispettata;
+
+indipendenza;
+
+proc sgscatter data = quattro; where w = 1;
+plot obs*res4/datalabel = obs;run;
+
+% rispettata;
+
+% omoschedasticità;
+
+proc sgscatter data = quattro; where w = 1;
+plot res4*pred4/datalabel = obs;run;
+
+% rispettata;
+

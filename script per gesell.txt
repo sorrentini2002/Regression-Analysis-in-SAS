@@ -1,0 +1,145 @@
+/* 
+Fonte: Cook_Weisberg, Residual and Influence in Regression */
+goptions reset=global;
+title 'Gesell data';
+options ls=80 ps=55 nodate;
+data gesell;
+title 'gesell data'; 
+input cod x y id$;
+label x='age/m' y='score';
+cards;
+1  15  95  a
+2  26  71  b
+3  10  83  c
+4   9  91  d
+5  15 102 e
+6  20  87  f
+7  18  93  g
+8  11 100  h
+9   8 104  i
+10 20  94  l
+11  7 113  m
+12  9  96  n
+13 10  83  o
+14 11  84  p
+15 11 102  q
+16 10 100  r
+17 12 105  s
+18 42  57  t
+19 17 121  u
+20 11  86  v
+21 10 100  z
+;
+proc print; run; 
+
+proc reg data =gesell;
+model y = x/r;
+plot r.*x;
+plot r.*y;
+run;
+
+% nulla di anomalo dal confronto tra residui e variabile esplicativa - fine della diagnostica sulla componente parametrica;
+
+diagnostica sulla compatibilità dei dati;
+
+proc reg data = gesell;
+model y = x/ r influence;
+output out = uno r= res1 p = pred1 h = h1 cookd = cook1;
+run;
+
+proc sgscatter data = uno;
+plot h1*cook1/datalabel = cod;
+run;
+
+proc gplot data = uno;
+bubble h1*cook1 = x/blabel;
+run;
+
+% tolgo la 18 che ha leverage e Cook pèiù elevati di tutti;
+
+data  gesell; set  gesell;
+w=1; if cod =18 then w = 0;
+run;
+
+proc reg data = gesell;
+model y = x/ r influence;
+weight w;
+output out = due r= res2 p = pred2 h = h2 cookd = cook2;
+run;
+
+proc sgscatter data = due;
+plot h2*cook2/datalabel = cod;
+run;
+
+% procedo ad eliinare la 2;
+
+data  gesell; set  gesell;
+if cod = 2 then w = 0;
+run;
+
+proc reg data = gesell;
+model y = x/ r influence;
+weight w;
+output out = tre r= res3 p = pred3 h = h3 cookd = cook3;
+run;
+
+proc sgscatter data = tre;
+plot h3*cook3/datalabel = cod;
+run;
+
+% elimino la 19;
+
+data  gesell; set  gesell;
+if cod = 19 then w = 0;
+run;
+
+proc reg data = gesell;
+model y = x/ r influence;
+weight w;
+output out = quattro r= res4 p = pred4 h = h4 cookd = cook4;
+run;
+
+proc sgscatter data = quattro;
+plot h4*cook4/datalabel = cod;
+run;
+
+% passo ad analisi sulla componente casuale;
+
+% normalità;
+
+data normal; set quattro; if w = 1; run;
+proc univariate plot normal;
+var res4;
+run;
+
+% non rispettata;
+% reintroduco l osservazione 19 e valuto nuovamente la normalità;
+
+data  gesell; set  gesell;
+if cod = 19 then w = 1;
+run;
+
+proc reg data = gesell;
+model y = x/ r influence;
+weight w;
+output out = quattro r= res4 p = pred4 h = h4 cookd = cook4;
+run;
+
+data normal; set quattro; if w = 1; run;
+proc univariate plot normal;
+var res4;
+run;
+
+% adesso normalità rispettata;
+% verifico omoschedasticità;
+
+proc sgscatter data = quattro; where w = 1;
+plot res4*pred4/datalabel = cod; run;
+
+% rispettata;
+% valuto indipendenza;
+
+proc sgscatter data = quattro; where w =1;
+plot res4*cod/datalabel = cod; run;
+
+% rispettata;
